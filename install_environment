@@ -5,8 +5,12 @@ VENV_NAME=".venv"
 
 if [ ! -e "${VENV_NAME}" ]; then
     sudo rfkill unblock bluetooth
+    sudo systemctl restart bluetooth
     python -m venv "${VENV_NAME}"
     source ${VENV_NAME}/bin/activate
     pip install pyserial
     deactivate
+    echo "Installed successfully"
+else
+    echo "Already installed"
 fi

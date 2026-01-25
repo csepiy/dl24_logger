@@ -1,8 +1,8 @@
-###Atorch DL24 logger###
+### Atorch DL24 logger ###
 
-Test environment:
- - Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), Debian Trixie 2025-12-04
- - DL24 with firmware version 1.1.0
+Environment hw&sw:
+ - Raspberry Pi 4B, Raspberry Pi OS Lite (64-bit) - Debian Trixie 2025-12-04
+ - DL24, firmware version 1.1.0
 
 Install:
 ```
@@ -20,6 +20,7 @@ bluetoothctl]> scan on
 ...
 [NEW] Device <BD_ADDR> DL24_SPP
 ...
+bluetoothctl]> quit
 ```
 
 Run:

@@ -69,37 +69,46 @@ def print_bin(data):
         print(f'0x{i:02X}' + ' ', end='')
     print('')
 
-def print_json(voltage, current, capacity, power, temp, resistance):
-    data_json = f'{{\"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
+def append_file(filename, data):
+    with open(filename, "a") as data_file:
+        data_file.write(data)
+
+def print_json(timestamp, voltage, current, capacity, power, temp, resistance, filename):
+    data_json = f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
     if resistance != -1:
         data_json = data_json + f', \"resistance\": {resistance:.1f}}}'
     else:
         data_json = data_json + '}'
     print(data_json)
+    if filename is not None:
+        append_file(filename + ".json", data_json + "\n")
 
-def print_tab(voltage, current, capacity, power, temp, resistance):
-    data_tab  = f'[{voltage}, {current}, {capacity}, {power:.2f}, {temp}'
+def print_tab(timestamp, voltage, current, capacity, power, temp, resistance, filename):
+    data_tab = f'[{timestamp}, {voltage}, {current}, {capacity}, {power:.2f}, {temp}'
     if resistance != -1:
-        data_tab  = data_tab  + f', {resistance:.1f}]'
+        data_tab = data_tab  + f', {resistance:.1f}]'
     else:
-        data_tab  = data_tab  + ']'
+        data_tab = data_tab  + ']'
     print(data_tab)
+    if filename is not None:
+        append_file(filename + ".tab", data_tab + "\n")
 
 def print_data(args, data):
-    voltage=get_voltage(data)
-    current=get_current(data)
-    capacity=get_capacity(data)
-    power=get_power(voltage, current)
-    temp=get_temp(data)
+    timestamp = int(time.time())
+    voltage = get_voltage(data)
+    current = get_current(data)
+    capacity = get_capacity(data)
+    power = get_power(voltage, current)
+    temp = get_temp(data)
     if current != 0:
         resistance = get_resistance(voltage, current)
     else:
         resistance = -1
 
     if args.json:
-        print_json(voltage, current, capacity, power, temp, resistance)
+        print_json(timestamp, voltage, current, capacity, power, temp, resistance, args.filename)
     if args.tab:
-        print_tab(voltage, current, capacity, power, temp, resistance)
+        print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args.filename)
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
@@ -107,6 +116,7 @@ def main():
     parser.add_argument('--json',  action='store_true', help='Print data in json format.')
     parser.add_argument('--tab',   action='store_true', help='Print data in tabular format.')
     parser.add_argument('--bin',   action='store_true', help='Print binary data.')
+    parser.add_argument('--filename',                   help='Save data to file.')
 
     args = parser.parse_args()
 

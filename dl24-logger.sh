@@ -23,6 +23,11 @@ if [ $# -gt 0 ]; then
     shift
 fi
 
+ARGS="$@"
+if [ $# -eq 0 ]; then
+    ARGS="-h"
+fi
+
 if [ "${BD_ADDR}" == "-h" ] || [ "${BD_ADDR}" == "--help" ]; then
     echo "usage: dl24-logger.sh [-h] [BD_ADDR] [dl24-logger.py parameters]"
     exit 0
@@ -33,7 +38,7 @@ if [[ ! "${BD_ADDR}" =~ ${BD_ADDR_REGEX} ]]; then
     exit 1
 fi
 
-for arg in $@
+for arg in ${ARGS}
 do
     if [ "${arg}" == "--onoff" ]; then
         ONOFF="true"
@@ -43,7 +48,7 @@ done
 
 source .venv/bin/activate
 sudo rfcomm bind 0 ${BD_ADDR} 1
-python dl24-logger.py $@
+python dl24-logger.py ${ARGS}
 sudo rfcomm unbind 0 ${BD_ADDR} 1
 deactivate
 
