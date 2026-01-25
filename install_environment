@@ -1,7 +1,12 @@
 #!/bin/bash
 
 set -euo pipefail
+VENV_NAME=".venv"
 
-python -m venv .venv
-source .venv/bin/activate
-pip install pyserial
+if [ ! -e "${VENV_NAME}" ]; then
+    sudo rfkill unblock bluetooth
+    python -m venv "${VENV_NAME}"
+    source ${VENV_NAME}/bin/activate
+    pip install pyserial
+    deactivate
+fi
