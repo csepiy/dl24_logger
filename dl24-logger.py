@@ -8,6 +8,7 @@ import argparse
 SERIAL_DEVICE = "/dev/rfcomm0"
 BAUD_RATE = 9600
 MESSAGE_SIZE = 36
+FIRST_JSON_LINE = True
 
 POSITION_VOLTAGE     = 0x04
 POSITION_CURRENT     = 0x07
@@ -72,33 +73,42 @@ def print_bin(data, command = 0):
     else:
         print('')
 
-def append_file(filename, data):
-    with open(filename, "a") as data_file:
+def write_file(filename, mode, data):
+    with open(filename, mode) as data_file:
         data_file.write(data)
 
-def print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, now):
-    data_json = f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
-    if resistance != -1:
-        data_json = data_json + f', \"resistance\": {resistance:.1f}}}'
-    else:
-        data_json = data_json + '}'
-    if args.sformat == "json":
-        print(data_json)
+def print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, filename):
+    global FIRST_JSON_LINE
     if args.fformat == "json":
-        append_file(args.filename + "_" + now + ".json", data_json + "\n")
+        if FIRST_JSON_LINE is False:
+            # write comma to the end of the previous line
+            data_json = ",\n"
+        else:
+            FIRST_JSON_LINE = False
+            data_json = ""
 
-def print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, now):
+    data_json += f'  {{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
+    if resistance != -1:
+        data_json += f', \"resistance\": {resistance:.1f}}}'
+    else:
+        data_json += '}'
+    if args.sformat == "json":
+        print(data_json, end='')
+    if args.fformat == "json":
+        write_file(filename, "a", data_json)
+
+def print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, filename):
     data_tab = f'[{timestamp}, {voltage}, {current}, {capacity}, {power:.2f}, {temp}'
     if resistance != -1:
-        data_tab = data_tab  + f', {resistance:.1f}]'
+        data_tab = data_tab  + f', {resistance:.1f}]\n'
     else:
-        data_tab = data_tab  + ']'
+        data_tab = data_tab  + ']\n'
     if args.sformat == "tab":
-        print(data_tab)
+        print(data_tab, end='')
     if args.fformat == "tab":
-        append_file(args.filename + "_" + now + ".tab", data_tab + "\n")
+        write_file(filename, "a", data_tab)
 
-def print_data(args, now, data):
+def print_data(args, filename, data):
     timestamp = int(time.time())
     voltage = get_voltage(data)
     current = get_current(data)
@@ -111,9 +121,9 @@ def print_data(args, now, data):
         resistance = -1
 
     if args.sformat == "json" or args.fformat == "json":
-        print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, now)
+        print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, filename)
     if args.sformat == "tab" or args.fformat == "tab":
-        print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, now)
+        print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, filename)
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
@@ -141,7 +151,19 @@ def main():
         if args.onoff:
             send_command(serial_device, COMMAND_OK)
 
-        now = time.strftime("%y%m%d%H%M%S")
+        # beginning of the file
+        if args.filename:
+            now = time.strftime("%y%m%d%H%M%S")
+            filename = args.filename + "_" + now
+            data = "[\n"
+            if args.fformat == "json":
+                filename += ".json"
+            if args.sformat == "json":
+                print(data, end='')
+            if args.fformat == "tab":
+                filename += ".tab"
+                data = ""
+            write_file(filename, "w", data)
 
         if args.sformat or args.fformat:
             try:
@@ -153,10 +175,17 @@ def main():
 
                     if args.sformat == "json" or args.sformat == "tab" or args.fformat == "json" or args.fformat == "tab":
                         if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
-                            print_data(args, now, data)
+                            print_data(args, filename, data)
 
             except KeyboardInterrupt:
                 print(' exit...')
+
+        # end of the file
+        data = "\n]\n"
+        if args.fformat == "json":
+            write_file(filename, "a", data)
+        if args.sformat == "json":
+            print(data, end='')
 
         serial_device.close()
 
