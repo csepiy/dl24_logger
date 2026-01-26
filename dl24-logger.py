@@ -61,39 +61,44 @@ def send_command(serial_device, command):
     byte_array = bytearray(message)
     byte_array += bytearray([calc_crc(message[2:])])
     serial_device.write(byte_array)
-    print_bin(byte_array)
+    print_bin(byte_array, command)
     time.sleep(1)
 
-def print_bin(data):
+def print_bin(data, command = 0):
     for i in data:
         print(f'0x{i:02X}' + ' ', end='')
-    print('')
+    if command == COMMAND_OK:
+        print("COMMAND: OK")
+    else:
+        print('')
 
 def append_file(filename, data):
     with open(filename, "a") as data_file:
         data_file.write(data)
 
-def print_json(timestamp, voltage, current, capacity, power, temp, resistance, filename):
+def print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, now):
     data_json = f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
     if resistance != -1:
         data_json = data_json + f', \"resistance\": {resistance:.1f}}}'
     else:
         data_json = data_json + '}'
-    print(data_json)
-    if filename is not None:
-        append_file(filename + ".json", data_json + "\n")
+    if args.sformat == "json":
+        print(data_json)
+    if args.fformat == "json":
+        append_file(args.filename + "_" + now + ".json", data_json + "\n")
 
-def print_tab(timestamp, voltage, current, capacity, power, temp, resistance, filename):
+def print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, now):
     data_tab = f'[{timestamp}, {voltage}, {current}, {capacity}, {power:.2f}, {temp}'
     if resistance != -1:
         data_tab = data_tab  + f', {resistance:.1f}]'
     else:
         data_tab = data_tab  + ']'
-    print(data_tab)
-    if filename is not None:
-        append_file(filename + ".tab", data_tab + "\n")
+    if args.sformat == "tab":
+        print(data_tab)
+    if args.fformat == "tab":
+        append_file(args.filename + "_" + now + ".tab", data_tab + "\n")
 
-def print_data(args, data):
+def print_data(args, now, data):
     timestamp = int(time.time())
     voltage = get_voltage(data)
     current = get_current(data)
@@ -105,20 +110,25 @@ def print_data(args, data):
     else:
         resistance = -1
 
-    if args.json:
-        print_json(timestamp, voltage, current, capacity, power, temp, resistance, args.filename)
-    if args.tab:
-        print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args.filename)
+    if args.sformat == "json" or args.fformat == "json":
+        print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, now)
+    if args.sformat == "tab" or args.fformat == "tab":
+        print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, now)
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
-    parser.add_argument('--onoff', action='store_true', help='Switch on or off DL24 output.')
-    parser.add_argument('--json',  action='store_true', help='Print data in json format.')
-    parser.add_argument('--tab',   action='store_true', help='Print data in tabular format.')
-    parser.add_argument('--bin',   action='store_true', help='Print binary data.')
-    parser.add_argument('--filename',                   help='Save data to file.')
+    parser.add_argument('--onoff',  action='store_true',             help='Switch on or off DL24 output.')
+    parser.add_argument('--sformat', choices=['bin', 'json', 'tab'], help='Set stdout data format.')
+    file_group = parser.add_argument_group('File options')
+    file_group.add_argument('--fformat', choices=['json', 'tab'],    help='Set file data format.')
+    file_group.add_argument('--filename',                            help='Save data to file.')
 
     args = parser.parse_args()
+
+    if args.filename and args.fformat is None:
+        parser.error("--filename requires --fformat.")
+    if args.fformat and args.filename is None:
+        parser.error("--fformat requires --filename.")
 
     try:
         serial_device = serial.Serial(SERIAL_DEVICE, BAUD_RATE, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE)
@@ -131,17 +141,19 @@ def main():
         if args.onoff:
             send_command(serial_device, COMMAND_OK)
 
-        if args.bin or args.json or args.tab:
+        now = time.strftime("%y%m%d%H%M%S")
+
+        if args.sformat or args.fformat:
             try:
                 while True:
                     data = serial_device.read(MESSAGE_SIZE)
 
-                    if args.bin:
+                    if args.sformat == "bin":
                         print_bin(data)
 
-                    if args.json or args.tab:
-                        if data[0]==0xFF and data[1]==0x55 and data[2]==0x01 and data[3]==0x02:
-                            print_data(args, data)
+                    if args.sformat == "json" or args.sformat == "tab" or args.fformat == "json" or args.fformat == "tab":
+                        if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
+                            print_data(args, now, data)
 
             except KeyboardInterrupt:
                 print(' exit...')
