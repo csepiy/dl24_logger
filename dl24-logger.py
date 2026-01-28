@@ -36,6 +36,7 @@ class dl24:
     def get_int8(self, data, pos):
         return data[pos]
 
+    # readable values from dl24
     def get_voltage(self, data):
         return self.get_int24(data, POSITION_VOLTAGE) / 10  # V
 
@@ -48,6 +49,7 @@ class dl24:
     def get_temp(self, data):
         return self.get_int16(data, POSITION_MOSFET_TEMP)  # C/F
 
+    # calculated values
     def get_power(self, voltage, current):
         return voltage * current / 1000  # W
 
@@ -67,16 +69,29 @@ class dl24:
         crc = self.calc_crc(message[2:])
         byte_array += bytearray([crc])
         serial_device.write(byte_array)
+        self.print_cmd_header()
         self.print_bin(byte_array, command)
         time.sleep(1)
 
+    def print_cmd_header(self):
+        print('+------HEADER-------+CMD-+-------------------+CRC-+')
+
+    def print_data_header(self):
+        print('+------HEADER-------+---VOLTAGE----+---CURRENT----+---CAPACITY---+------------------------------------------------------+--TEMP---+-------------------------------------------------+')
+
     def print_bin(self, data, command = 0):
-        for i in data:
-            print(f'0x{i:02X}' + ' ', end='')
-        if command == COMMAND_OK:
-            print("COMMAND: OK")
-        else:
-            print('')
+        # header
+        print(f'|0x{data[0]:02X} 0x{data[1]:02X} 0x{data[2]:02X} 0x{data[3]:02X}|', end='')
+        if command == 0: # data
+            # voltage, current, capacity
+            print(f'0x{data[4]:02X} 0x{data[5]:02X} 0x{data[6]:02X}|0x{data[7]:02X} 0x{data[8]:02X} 0x{data[9]:02X}|0x{data[10]:02X} 0x{data[11]:02X} 0x{data[12]:02X}|', end='')
+            print(f'0x{data[13]:02X} 0x{data[14]:02X} 0x{data[15]:02X} 0x{data[16]:02X} 0x{data[17]:02X} 0x{data[18]:02X} 0x{data[19]:02X} 0x{data[20]:02X} 0x{data[21]:02X} 0x{data[22]:02X} 0x{data[23]:02X}|', end='')
+            # temp
+            print(f'0x{data[24]:02X} 0x{data[25]:02X}|0x{data[26]:02X} 0x{data[27]:02X} 0x{data[28]:02X} 0x{data[29]:02X} 0x{data[30]:02X} 0x{data[31]:02X} 0x{data[32]:02X} 0x{data[33]:02X} 0x{data[34]:02X} 0x{data[35]:02X}|')
+        else: # commands
+            print(f'0x{data[4]:02X}|0x{data[5]:02X} 0x{data[6]:02X} 0x{data[7]:02X} 0x{data[8]:02X}|0x{data[9]:02X}| ', end='')
+            if command == COMMAND_OK:
+                print("COMMAND: OK")
 
     def write_file(self, filename, mode, data):
         with open(filename, mode) as data_file:
@@ -176,6 +191,10 @@ def main():
                 filename += ".tab"
                 data = ""
             dl24obj.write_file(filename, "w", data)
+
+
+        if args.sformat == "bin":
+            dl24obj.print_data_header()
 
         if args.sformat or args.fformat:
             try:
