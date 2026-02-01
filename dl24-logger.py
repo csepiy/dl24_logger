@@ -23,6 +23,7 @@ class dl24:
     def __init__(self):
         self.capacity_prev = -1
         self.first_json_line = True
+        self.curr_state = "started"
 
     def get_int32(self, data, pos):
         return (data[pos] << 24) + (data[pos + 1] << 16) + (data[pos + 2] << 8) + data[pos + 3]
@@ -60,7 +61,6 @@ class dl24:
         crc = 0
         for i in range(0, len(data)):
             crc += data[i]
-
         return (crc ^ 0x44) & 0xFF
 
     def send_command(self, serial_device, command):
@@ -136,11 +136,16 @@ class dl24:
         temp = self.get_temp(data)
         if current != 0:
             resistance = self.get_resistance(voltage, current)
+            if self.curr_state == "started":
+                self.curr_state = "working"
         else:
+            if self.curr_state == "working":
+                self.curr_state = "stopped"
             resistance = -1
 
-        if args.capdiff and capacity == self.capacity_prev:
-            return
+        if args.autostop == False or (args.autostop == True and self.curr_state != "stopped"):
+            if args.cdiff and capacity == self.capacity_prev:
+                return
 
         self.capacity_prev = capacity
         if args.sformat == "json" or args.fformat == "json":
@@ -150,13 +155,14 @@ class dl24:
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
-    parser.add_argument('--onoff',  action='store_true',             help='Switch on or off DL24 output.')
-    parser.add_argument('--sformat', choices=['bin', 'json', 'tab'], help='Set stdout data format.')
-    parser.add_argument('--capdiff', action='store_true',            help='Show data when capacity changes.')
+    parser.add_argument('--onoff',    action='store_true',            help='Switch on or off DL24 output.')
+    parser.add_argument('--sformat',  choices=['bin', 'json', 'tab'], help='Set stdout data format.')
+    parser.add_argument('--cdiff',    action='store_true',            help='Show data when capacity changes.')
+    parser.add_argument('--autostop', action='store_true',            help='Stop when current is zero.')
 
     file_group = parser.add_argument_group('File options')
-    file_group.add_argument('--fformat', choices=['json', 'tab'],    help='Set file data format.')
-    file_group.add_argument('--filename',                            help='Save data to file.')
+    file_group.add_argument('--fformat', choices=['json', 'tab'],     help='Set file data format.')
+    file_group.add_argument('--filename',                             help='Save data to file.')
 
     args = parser.parse_args()
 
@@ -207,6 +213,8 @@ def main():
                     if args.sformat == "json" or args.sformat == "tab" or args.fformat == "json" or args.fformat == "tab":
                         if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
                             dl24obj.print_data(args, filename, data)
+                            if args.autostop and dl24obj.curr_state == "stopped":
+                                break
 
             except KeyboardInterrupt:
                 print(' exit...')
