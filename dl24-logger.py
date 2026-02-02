@@ -98,34 +98,23 @@ class dl24:
             data_file.write(data)
 
     def print_json(self, timestamp, voltage, current, capacity, power, temp, resistance, args, filename):
-        if args.fformat == "json":
-            if self.first_json_line is False:
-                # write comma to the end of the previous line
-                data_json = ",\n"
-            else:
-                self.first_json_line = False
-                data_json = ""
+        if self.first_json_line is False:
+            # write comma to the end of the previous line
+            data_json = ",\n"
+        else:
+            self.first_json_line = False
+            data_json = ""
 
-        data_json += f'  {{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
+        data_json += f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
         if resistance != -1:
             data_json += f', \"resistance\": {resistance:.1f}}}'
         else:
             data_json += '}'
+
         if args.sformat == "json":
             print(data_json, end='')
-        if args.fformat == "json":
+        if args.filename:
             self.write_file(filename, "a", data_json)
-
-    def print_tab(self, timestamp, voltage, current, capacity, power, temp, resistance, args, filename):
-        data_tab = f'[{timestamp}, {voltage}, {current}, {capacity}, {power:.2f}, {temp}'
-        if resistance != -1:
-            data_tab = data_tab  + f', {resistance:.1f}]\n'
-        else:
-            data_tab = data_tab  + ']\n'
-        if args.sformat == "tab":
-            print(data_tab, end='')
-        if args.fformat == "tab":
-            self.write_file(filename, "a", data_tab)
 
     def print_data(self, args, filename, data):
         timestamp = int(time.time())
@@ -148,28 +137,19 @@ class dl24:
                 return
 
         self.capacity_prev = capacity
-        if args.sformat == "json" or args.fformat == "json":
+        if args.filename or args.sformat == "json":
             self.print_json(timestamp, voltage, current, capacity, power, temp, resistance, args, filename)
-        if args.sformat == "tab" or args.fformat == "tab":
-            self.print_tab(timestamp, voltage, current, capacity, power, temp, resistance, args, filename)
+        if args.sformat == "bin":
+            self.print_bin(data)
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
-    parser.add_argument('--onoff',    action='store_true',            help='Switch on or off DL24 output.')
-    parser.add_argument('--sformat',  choices=['bin', 'json', 'tab'], help='Set stdout data format.')
-    parser.add_argument('--cdiff',    action='store_true',            help='Show data when capacity changes.')
-    parser.add_argument('--autostop', action='store_true',            help='Stop when current is zero.')
-
-    file_group = parser.add_argument_group('File options')
-    file_group.add_argument('--fformat', choices=['json', 'tab'],     help='Set file data format.')
-    file_group.add_argument('--filename',                             help='Save data to file.')
-
+    parser.add_argument('--onoff',    action='store_true',     help='Switch on or off DL24 output.')
+    parser.add_argument('--sformat',  choices=['bin', 'json'], help='Set stdout data format.')
+    parser.add_argument('--cdiff',    action='store_true',     help='Show data when capacity changes.')
+    parser.add_argument('--autostop', action='store_true',     help='Stop when current is zero.')
+    parser.add_argument('--filename',                          help='Save data to json file.')
     args = parser.parse_args()
-
-    if args.filename and args.fformat is None:
-        parser.error("--filename requires --fformat.")
-    if args.fformat and args.filename is None:
-        parser.error("--fformat requires --filename.")
 
     dl24obj = dl24()
 
@@ -187,44 +167,31 @@ def main():
         # beginning of the file
         if args.filename:
             now = time.strftime("%y%m%d%H%M%S")
-            filename = args.filename + "_" + now
+            filename = args.filename + "_" + now + ".json"
             data = "[\n"
-            if args.fformat == "json":
-                filename += ".json"
-            if args.sformat == "json":
-                print(data, end='')
-            if args.fformat == "tab":
-                filename += ".tab"
-                data = ""
             dl24obj.write_file(filename, "w", data)
-
+        else:
+            filename = ""
 
         if args.sformat == "bin":
             dl24obj.print_data_header()
 
-        if args.sformat or args.fformat:
+        if args.sformat or args.filename:
             try:
                 while True:
                     data = serial_device.read(MESSAGE_SIZE)
-
-                    if args.sformat == "bin":
-                        dl24obj.print_bin(data)
-
-                    if args.sformat == "json" or args.sformat == "tab" or args.fformat == "json" or args.fformat == "tab":
-                        if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
-                            dl24obj.print_data(args, filename, data)
-                            if args.autostop and dl24obj.curr_state == "stopped":
-                                break
+                    if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
+                        dl24obj.print_data(args, filename, data)
+                        if args.autostop and dl24obj.curr_state == "stopped":
+                             break
 
             except KeyboardInterrupt:
                 print(' exit...')
 
         # end of the file
-        data = "\n]\n"
-        if args.fformat == "json":
+        if args.filename:
+            data = "\n]\n"
             dl24obj.write_file(filename, "a", data)
-        if args.sformat == "json":
-            print(data, end='')
 
         serial_device.close()
 
