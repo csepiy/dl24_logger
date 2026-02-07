@@ -23,6 +23,20 @@ bluetoothctl]> scan on
 bluetoothctl]> quit
 ```
 
+Optionally connect DS18B20 1-wire temperature sensor to Raspberry Pi to measure environment temperature:
+- black: GND (pin 6)
+- red: 3.3V (pin 1)
+- yellow: GPIO 4 (pin 7)
+
+Enable 1-wire interface:
+```
+$ sudo raspi-config
+$   => Interface Options
+$     => 1-Wire
+$       => Enable
+$   => reboot
+```
+
 Run:
 ```
 $ ./dl24_logger.sh <BD_ADDR> [-h]
