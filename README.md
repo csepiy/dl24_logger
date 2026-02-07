@@ -31,10 +31,16 @@ Optionally connect DS18B20 1-wire temperature sensor to Raspberry Pi to measure 
 Enable 1-wire interface:
 ```
 $ sudo raspi-config
-$   => Interface Options
-$     => 1-Wire
-$       => Enable
-$   => reboot
+  => Interface Options
+    => 1-Wire
+      => Enable
+  => Reboot
+```
+
+Get DS18B20 device address:
+```
+$ ls /sys/bus/w1/devices/
+28-<address> w1_bus_master1
 ```
 
 Run:

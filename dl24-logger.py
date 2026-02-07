@@ -7,7 +7,7 @@ import os
 import argparse
 
 SERIAL_DEVICE = "/dev/rfcomm0"
-ONE_WIRE_DEVICE = "/sys/bus/w1/devices/"
+ONE_WIRE_DEVICE = "/sys/bus/w1/devices"
 
 BAUD_RATE = 9600
 MESSAGE_SIZE = 36
@@ -29,8 +29,11 @@ class ds18b20:
         self.offset = offset 
 
     def read_temp(self):
-        with open(os.path.join(ONE_WIRE_DEVICE, self.device_addr, "w1_slave"), 'r') as raw_temp:
-            lines = raw_temp.readlines()
+        try:
+            with open(os.path.join(ONE_WIRE_DEVICE, self.device_addr, "w1_slave"), 'r') as raw_temp:
+                lines = raw_temp.readlines()
+        except FileNotFoundError:
+            return NA
 
         if lines[0].strip()[-3:] != 'YES':
             return NA
@@ -102,7 +105,7 @@ class dl24:
         print('+------HEADER-------+CMD-+-------------------+CRC-+')
 
     def print_data_header(self):
-        print('+------HEADER-------+---VOLTAGE----+---CURRENT----+---CAPACITY---+------------------------------------------------------+--TEMP---+-------------------------------------------------+')
+        print('+------HEADER-------+---VOLTAGE----+---CURRENT----+---CAPACITY---+------------------------------------------------------+MOS-TEMP-+-------------------------------------------------+')
 
     def print_bin(self, data, command = 0):
         # header
@@ -130,7 +133,7 @@ class dl24:
             self.first_json_line = False
             data_json = ""
 
-        data_json += f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"temp\": {temp}'
+        data_json += f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"mos_temp\": {temp}'
 
         if ext_temp != NA:
             data_json += f', \"ext_temp\": {ext_temp:.1f}'
@@ -166,7 +169,7 @@ class dl24:
                 return
 
         if args.ds18b20:
-            ds18b20obj = ds18b20(args.ds18b20, args.offset)
+            ds18b20obj = ds18b20('28-' + args.ds18b20, args.offset)
             ext_temp = ds18b20obj.read_temp()
             if ext_temp != NA:
                 self.avg_ext_temp_sum += ext_temp
@@ -187,7 +190,7 @@ def main():
     parser.add_argument('--cdiff',    action='store_true',     help='Show data when capacity changes.')
     parser.add_argument('--autostop', action='store_true',     help='Stop when current changes to zero.')
     parser.add_argument('--filename',                          help='Save data to json file.')
-    parser.add_argument('--ds18b20',                           help='Set device address to read temperature from DS18B20 temperature sensor.')
+    parser.add_argument('--ds18b20',                           help='Set device address (28-<addr>) to read temperature from DS18B20 temperature sensor.')
     parser.add_argument('--offset', type=float, default=0.0,   help='Set DS18B20 temperature offset.')
     args = parser.parse_args()
 
@@ -208,7 +211,7 @@ def main():
         if args.filename:
             now = time.strftime("%y%m%d%H%M%S")
             filename = args.filename + "_" + now + ".json"
-            data = "[\n"
+            data = "{\n\"data\": [\n"
             dl24obj.write_file(filename, "w", data)
         else:
             filename = ""
@@ -232,14 +235,15 @@ def main():
 
         # end of the file
         if args.filename:
-            data = "\n]\n"
+            if dl24obj.avg_ext_temp_sum != 0:
+                avg_temp = dl24obj.avg_ext_temp_sum / dl24obj.avg_ext_temp_cnt
+                data = f"\n], \"average_temp\": {avg_temp:.1f}\n}}\n"
+            else:
+                data = "\n]\n}\n"
+
             dl24obj.write_file(filename, "a", data)
 
         serial_device.close()
-
-        if dl24obj.avg_ext_temp_sum != 0:
-            avg_temp = dl24obj.avg_ext_temp_sum / dl24obj.avg_ext_temp_cnt
-            print(f'Environment temperature average: {avg_temp:.1f}C')
 
 if __name__=="__main__":
     main()
