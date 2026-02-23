@@ -9,6 +9,8 @@ import argparse
 SERIAL_DEVICE = "/dev/rfcomm0"
 ONE_WIRE_DEVICE = "/sys/bus/w1/devices"
 
+SHUTDOWN_CMD = "sudo shutdown -t 1"
+
 BAUD_RATE = 9600
 MESSAGE_SIZE = 36
 NA = -9999
@@ -164,7 +166,7 @@ class dl24:
                 self.curr_state = "stopped"
             resistance = NA
 
-        if args.autostop == False or (args.autostop == True and self.curr_state != "stopped"):
+        if (args.autostop == False and args.autoshtd == False) or self.curr_state == "working":
             if args.cdiff and capacity == self.capacity_prev:
                 return
 
@@ -185,13 +187,17 @@ class dl24:
     
 def main():
     parser = argparse.ArgumentParser(description='DL24 data logger')
+    group = parser.add_mutually_exclusive_group()
+
     parser.add_argument('--onoff',    action='store_true',     help='Switch on or off DL24 output.')
     parser.add_argument('--sformat',  choices=['bin', 'json'], help='Set stdout data format.')
     parser.add_argument('--cdiff',    action='store_true',     help='Show data when capacity changes.')
-    parser.add_argument('--autostop', action='store_true',     help='Stop when current changes to zero.')
     parser.add_argument('--filename',                          help='Save data to json file.')
     parser.add_argument('--ds18b20',                           help='Set device address (28-<addr>) to read temperature from DS18B20 temperature sensor.')
-    parser.add_argument('--offset', type=float, default=0.0,   help='Set DS18B20 temperature offset.')
+    parser.add_argument('--offset',   type=float, default=0.0, help='Set DS18B20 temperature offset.')
+    group.add_argument ('--autostop', action='store_true',     help='Exit when current changes to zero.')
+    group.add_argument ('--autoshtd', action='store_true',     help='Shutdown when current changes to zero.')
+
     args = parser.parse_args()
 
     dl24obj = dl24()
@@ -225,7 +231,8 @@ def main():
                     data = serial_device.read(MESSAGE_SIZE)
                     if data[0] == 0xFF and data[1] == 0x55 and data[2] == 0x01 and data[3] == 0x02:
                         dl24obj.print_data(args, filename, data)
-                        if args.autostop and dl24obj.curr_state == "stopped":
+                        if (args.autostop or args.autoshtd) and dl24obj.curr_state == "stopped":
+                             print(' Autostop')
                              break
 
             except KeyboardInterrupt:
@@ -244,6 +251,9 @@ def main():
             dl24obj.write_file(filename, "a", data)
 
         serial_device.close()
+
+        if args.autoshtd:
+            os.system(SHUTDOWN_CMD)
 
 if __name__=="__main__":
     main()
