@@ -19,6 +19,9 @@ POSITION_VOLTAGE     = 0x04
 POSITION_CURRENT     = 0x07
 POSITION_CAPACITY    = 0x0A
 POSITION_MOSFET_TEMP = 0x18
+POSITION_HOUR        = 0x1A
+POSITION_MINUTE      = 0x1C
+POSITION_SEC         = 0x1D
 
 COMMAND_SETUP = 0x31
 COMMAND_OK    = 0x32
@@ -69,23 +72,32 @@ class dl24:
 
     # readable values from dl24
     def get_voltage(self, data):
-        return self.get_int24(data, POSITION_VOLTAGE) / 10  # V
+        return self.get_int24(data, POSITION_VOLTAGE) / 10   # V
 
     def get_current(self, data):
-        return self.get_int24(data, POSITION_CURRENT)  # mA
+        return self.get_int24(data, POSITION_CURRENT)        # mA
 
     def get_capacity(self, data):
         return self.get_int24(data, POSITION_CAPACITY) * 10  # mAh
 
     def get_temp(self, data):
-        return self.get_int16(data, POSITION_MOSFET_TEMP)  # C/F
+        return self.get_int16(data, POSITION_MOSFET_TEMP)    # C/F
+
+    def get_hour(self, data):
+        return self.get_int16(data, POSITION_HOUR)           # hour
+
+    def get_min(self, data):
+        return self.get_int8(data, POSITION_MINUTE)          # min
+
+    def get_sec(self, data):
+        return self.get_int8(data, POSITION_SEC)             # sec
 
     # calculated values
     def get_power(self, voltage, current):
-        return voltage * current / 1000  # W
+        return voltage * current / 1000                      # W
 
     def get_resistance(self, voltage, current):
-        return voltage / (current / 1000)  # Ohm
+        return voltage / (current / 1000)                    # Ohm
 
     def calc_crc(self, data):
         crc = 0
@@ -107,7 +119,7 @@ class dl24:
         print('+------HEADER-------+CMD-+-------------------+CRC-+')
 
     def print_data_header(self):
-        print('+------HEADER-------+---VOLTAGE----+---CURRENT----+---CAPACITY---+------------------------------------------------------+MOS-TEMP-+-------------------------------------------------+')
+        print('+------HEADER-------+---VOLTAGE----+---CURRENT----+---CAPACITY---+------------------------------------------------------+MOS-TEMP-+--HOUR---+-MI-+-SE-+-----------------------------+')
 
     def print_bin(self, data, command = 0):
         # header
@@ -116,18 +128,20 @@ class dl24:
             # voltage, current, capacity
             print(f'0x{data[4]:02X} 0x{data[5]:02X} 0x{data[6]:02X}|0x{data[7]:02X} 0x{data[8]:02X} 0x{data[9]:02X}|0x{data[10]:02X} 0x{data[11]:02X} 0x{data[12]:02X}|', end='')
             print(f'0x{data[13]:02X} 0x{data[14]:02X} 0x{data[15]:02X} 0x{data[16]:02X} 0x{data[17]:02X} 0x{data[18]:02X} 0x{data[19]:02X} 0x{data[20]:02X} 0x{data[21]:02X} 0x{data[22]:02X} 0x{data[23]:02X}|', end='')
-            # temp
-            print(f'0x{data[24]:02X} 0x{data[25]:02X}|0x{data[26]:02X} 0x{data[27]:02X} 0x{data[28]:02X} 0x{data[29]:02X} 0x{data[30]:02X} 0x{data[31]:02X} 0x{data[32]:02X} 0x{data[33]:02X} 0x{data[34]:02X} 0x{data[35]:02X}|')
+            # temp, hour, minute, sec
+            print(f'0x{data[24]:02X} 0x{data[25]:02X}|0x{data[26]:02X} 0x{data[27]:02X}|0x{data[28]:02X}|0x{data[29]:02X}|0x{data[30]:02X} 0x{data[31]:02X} 0x{data[32]:02X} 0x{data[33]:02X} 0x{data[34]:02X} 0x{data[35]:02X}|')
         else: # commands
             print(f'0x{data[4]:02X}|0x{data[5]:02X} 0x{data[6]:02X} 0x{data[7]:02X} 0x{data[8]:02X}|0x{data[9]:02X}| ', end='')
             if command == COMMAND_OK:
                 print("COMMAND: OK")
+            else:
+                print("")
 
     def write_file(self, filename, mode, data):
         with open(filename, mode) as data_file:
             data_file.write(data)
 
-    def print_json(self, timestamp, voltage, current, capacity, power, temp, ext_temp, resistance, args, filename):
+    def print_json(self, timestamp, voltage, current, capacity, temp, hour, minute, sec, power, ext_temp, resistance, args, filename):
         if self.first_json_line is False:
             # write comma to the end of the previous line
             data_json = ",\n"
@@ -135,7 +149,7 @@ class dl24:
             self.first_json_line = False
             data_json = ""
 
-        data_json += f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"power\": {power:.2f}, \"mos_temp\": {temp}'
+        data_json += f'{{\"timestamp\": {timestamp}, \"voltage\": {voltage}, \"current\": {current}, \"capacity\": {capacity}, \"mos_temp\": {temp}, \"hour\": {hour}, \"minute\": {minute}, \"sec\": {sec}, \"power\": {power:.2f}'
 
         if ext_temp != NA:
             data_json += f', \"ext_temp\": {ext_temp:.1f}'
@@ -155,8 +169,12 @@ class dl24:
         voltage = self.get_voltage(data)
         current = self.get_current(data)
         capacity = self.get_capacity(data)
-        power = self.get_power(voltage, current)
         temp = self.get_temp(data)
+        hour = self.get_hour(data)
+        minute = self.get_min(data)
+        sec = self.get_sec(data)
+        power = self.get_power(voltage, current)
+
         if current != 0:
             resistance = self.get_resistance(voltage, current)
             if self.curr_state == "started":
@@ -181,7 +199,7 @@ class dl24:
 
         self.capacity_prev = capacity
         if args.filename or args.sformat == "json":
-            self.print_json(timestamp, voltage, current, capacity, power, temp, ext_temp, resistance, args, filename)
+            self.print_json(timestamp, voltage, current, capacity, temp, hour, minute, sec, power, ext_temp, resistance, args, filename)
         if args.sformat == "bin":
             self.print_bin(data)
     

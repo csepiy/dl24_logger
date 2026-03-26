@@ -3,9 +3,11 @@
 set -euo pipefail
 VENV_NAME=".venv"
 
+sudo rfkill unblock bluetooth
+sudo systemctl restart bluetooth
+sudo apt-get -y install screen
+
 if [ ! -e "${VENV_NAME}" ]; then
-    sudo rfkill unblock bluetooth
-    sudo systemctl restart bluetooth
     python -m venv "${VENV_NAME}"
     source ${VENV_NAME}/bin/activate
     pip install pyserial
