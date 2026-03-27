@@ -16,17 +16,17 @@ $ cd dl24_logger
 $ ./install_environment
 ```
 
-Get DL24/BW150 bluetooth device address:
+Get DL24/BW150 Bluetooth device address:
 ```
 $ bluetoothctl
-bluetoothctl]> scan on
+[bluetoothctl]> scan on
 ...
 [NEW] Device <BD_ADDR> DL24_SPP (BW150_SPP)
 ...
-bluetoothctl]> quit
+[bluetoothctl]> quit
 ```
 
-If bluetooth not working, check rfkill:
+If Bluetooth is not working, check rfkill:
 ```
 $ rfkill list
 0: hci0: Bluetooth
@@ -39,12 +39,12 @@ $ rfkill list
 $ sudo rfkill unblock all
 ```
 
-Optionally connect DS18B20 1-wire temperature sensor to Raspberry Pi to measure environment temperature:
+Optionally connect a DS18B20 1-wire temperature sensor to the Raspberry Pi to measure temperature:
 - black: GND (pin 6)
 - red: 3.3V (pin 1)
 - yellow: GPIO 4 (pin 7)
 
-Enable 1-wire interface:
+Enable the 1-wire interface:
 ```
 $ sudo raspi-config
   => 3 Interface Options
@@ -65,9 +65,10 @@ Run:
 $ ./dl24_logger.sh <BD_ADDR> [-h]
 ```
 
-Use screen manager for long runs:
+Use a screen manager for long runs:
 ```
 $ screen
 $ ./dl24_logger.sh ...
 <CTRL-A + D> (Detach)
+screen -r (Reattach)
 ```

@@ -23,10 +23,12 @@ POSITION_HOUR        = 0x1A
 POSITION_MINUTE      = 0x1C
 POSITION_SEC         = 0x1D
 
-COMMAND_SETUP = 0x31
-COMMAND_OK    = 0x32
-COMMAND_PLUS  = 0x33
-COMMAND_MINUS = 0x34
+COMMAND_RESET_WH = 0x01
+COMMAND_RESET_AH = 0x02
+COMMAND_SETUP    = 0x31
+COMMAND_OK       = 0x32
+COMMAND_PLUS     = 0x33
+COMMAND_MINUS    = 0x34
 
 class ds18b20:
     def __init__(self, device, offset):
@@ -113,7 +115,6 @@ class dl24:
         serial_device.write(byte_array)
         self.print_cmd_header()
         self.print_bin(byte_array, command)
-        time.sleep(1)
 
     def print_cmd_header(self):
         print('+------HEADER-------+CMD-+-------------------+CRC-+')
@@ -132,8 +133,19 @@ class dl24:
             print(f'0x{data[24]:02X} 0x{data[25]:02X}|0x{data[26]:02X} 0x{data[27]:02X}|0x{data[28]:02X}|0x{data[29]:02X}|0x{data[30]:02X} 0x{data[31]:02X} 0x{data[32]:02X} 0x{data[33]:02X} 0x{data[34]:02X} 0x{data[35]:02X}|')
         else: # commands
             print(f'0x{data[4]:02X}|0x{data[5]:02X} 0x{data[6]:02X} 0x{data[7]:02X} 0x{data[8]:02X}|0x{data[9]:02X}| ', end='')
-            if command == COMMAND_OK:
+
+            if command == COMMAND_RESET_WH:
+                print("COMMAND: RESET ENERGY")
+            elif command == COMMAND_RESET_AH:
+                print("COMMAND: RESET CAPACITY")
+            elif command == COMMAND_SETUP:
+                print("COMMAND: SETUP")
+            elif command == COMMAND_OK:
                 print("COMMAND: OK")
+            elif command == COMMAND_PLUS:
+                print("COMMAND: PLUS")
+            elif command == COMMAND_MINUS:
+                print("COMMAND: MINUS")
             else:
                 print("")
 
