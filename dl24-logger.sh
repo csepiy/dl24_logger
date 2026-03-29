@@ -30,6 +30,7 @@ fi
 
 if [ "${BD_ADDR}" == "-h" ] || [ "${BD_ADDR}" == "--help" ]; then
     echo "usage: dl24-logger.sh [-h] [BD_ADDR] [dl24-logger.py parameters]"
+    echo "Get BD_ADDR: bluetoothctl => scan on  (look for DL24_SPP or BW150_SPP)"
     exit 0
 fi
 

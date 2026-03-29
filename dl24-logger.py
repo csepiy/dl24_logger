@@ -223,7 +223,7 @@ def main():
     parser.add_argument('--sformat',  choices=['bin', 'json'], help='Set stdout data format.')
     parser.add_argument('--cdiff',    action='store_true',     help='Show data when capacity changes.')
     parser.add_argument('--filename',                          help='Save data to json file.')
-    parser.add_argument('--ds18b20',                           help='Set device address (28-<addr>) to read temperature from DS18B20 temperature sensor.')
+    parser.add_argument('--ds18b20',                           help='Set device address (28-<addr>) to read temperature from DS18B20 temperature sensor. Get address: ls /sys/bus/w1/devices/')
     parser.add_argument('--offset',   type=float, default=0.0, help='Set DS18B20 temperature offset.')
     group.add_argument ('--autostop', action='store_true',     help='Exit when current changes to zero.')
     group.add_argument ('--autoshtd', action='store_true',     help='Shutdown when current changes to zero.')
@@ -256,6 +256,8 @@ def main():
             dl24obj.print_data_header()
 
         if args.sformat or args.filename:
+            if args.onoff:
+                input('Set current and clear counters on DL24, then press Enter to start...')
             try:
                 while True:
                     data = serial_device.read(MESSAGE_SIZE)
