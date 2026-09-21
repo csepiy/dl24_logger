@@ -10,7 +10,7 @@ function func_exit()
     if [ "${ONOFF}" == "true" ]; then
         python dl24-logger.py --onoff
     fi
-    sudo rfcomm unbind 0 ${BD_ADDR} 1
+    rfcomm unbind 0 ${BD_ADDR} 1
     deactivate
     exit 1
 }
@@ -26,6 +26,13 @@ fi
 ARGS="$@"
 if [ $# -eq 0 ]; then
     ARGS="-h"
+fi
+
+if (( EUID != 0 )); then
+    echo "Script must be run with root privileges."
+    exit 1
+else
+    echo "Running with root privileges."
 fi
 
 if [ "${BD_ADDR}" == "-h" ] || [ "${BD_ADDR}" == "--help" ]; then
@@ -47,9 +54,16 @@ do
     fi
 done
 
+if [[ "${TERM}" == screen* ]]; then
+    echo "Running inside screen session."
+else
+    echo "Warning: not running inside a screen session. The logger may be interrupted if the terminal closes."
+fi
+echo
+
 source .venv/bin/activate
-sudo rfcomm bind 0 ${BD_ADDR} 1
+rfcomm bind 0 ${BD_ADDR} 1
 python dl24-logger.py ${ARGS}
-sudo rfcomm unbind 0 ${BD_ADDR} 1
+rfcomm unbind 0 ${BD_ADDR} 1
 deactivate
 

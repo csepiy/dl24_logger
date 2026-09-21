@@ -23,6 +23,13 @@ POSITION_HOUR        = 0x1A
 POSITION_MINUTE      = 0x1C
 POSITION_SEC         = 0x1D
 
+BATTERY_TYPES = {
+    "alkaline/ni-mh": {"cutoff": 1.0, "max": 1.7},
+    "lithium":        {"cutoff": 2.0, "max": 3.4},
+}
+
+AUTOSTOP_BELOW_CUTOFF_COUNT = 5  # consecutive readings below cutoff voltage to trigger autostop
+
 COMMAND_RESET_WH = 0x01
 COMMAND_RESET_AH = 0x02
 COMMAND_SETUP    = 0x31
@@ -59,6 +66,8 @@ class dl24:
         self.curr_state = "started"
         self.avg_ext_temp_sum = 0
         self.avg_ext_temp_cnt = 0
+        self.battery_type = None
+        self.below_cutoff_count = 0
 
     def get_int32(self, data, pos):
         return (data[pos] << 24) + (data[pos + 1] << 16) + (data[pos + 2] << 8) + data[pos + 3]
@@ -100,6 +109,12 @@ class dl24:
 
     def get_resistance(self, voltage, current):
         return voltage / (current / 1000)                    # Ohm
+
+    def detect_battery_type(self, voltage):
+        for btype, params in BATTERY_TYPES.items():
+            if params["cutoff"] <= voltage <= params["max"]:
+                return btype
+        return None
 
     def calc_crc(self, data):
         crc = 0
@@ -187,18 +202,31 @@ class dl24:
         sec = self.get_sec(data)
         power = self.get_power(voltage, current)
 
+        if self.battery_type is None:
+            self.battery_type = self.detect_battery_type(voltage)
+            if self.battery_type is None:
+                print(f'Unknown battery type for voltage {voltage}V, cannot detect cutoff. Exiting.')
+                sys.exit(1)
+            print(f'\nBattery type detected: {self.battery_type} (cutoff: {BATTERY_TYPES[self.battery_type]["cutoff"]}V)\n')
+
         if current != 0:
             resistance = self.get_resistance(voltage, current)
             if self.curr_state == "started":
                 self.curr_state = "working"
         else:
-            if self.curr_state == "working":
-                self.curr_state = "stopped"
             resistance = NA
 
-        if (args.autostop == False and args.autoshtd == False) or self.curr_state == "working":
-            if args.cdiff and capacity == self.capacity_prev:
-                return
+        if self.curr_state == "working" and self.battery_type is not None:
+            cutoff = BATTERY_TYPES[self.battery_type]["cutoff"]
+            if voltage < cutoff:
+                self.below_cutoff_count += 1
+                if self.below_cutoff_count >= AUTOSTOP_BELOW_CUTOFF_COUNT:
+                    self.curr_state = "stopped"
+            else:
+                self.below_cutoff_count = 0
+
+        if self.curr_state == "working" and args.cdiff and capacity == self.capacity_prev:
+            return
 
         if args.ds18b20:
             ds18b20obj = ds18b20('28-' + args.ds18b20, args.offset)
@@ -225,8 +253,8 @@ def main():
     parser.add_argument('--filename',                          help='Save data to json file.')
     parser.add_argument('--ds18b20',                           help='Set device address (28-<addr>) to read temperature from DS18B20 temperature sensor. Get address: ls /sys/bus/w1/devices/')
     parser.add_argument('--offset',   type=float, default=0.0, help='Set DS18B20 temperature offset.')
-    group.add_argument ('--autostop', action='store_true',     help='Exit when current changes to zero.')
-    group.add_argument ('--autoshtd', action='store_true',     help='Shutdown when current changes to zero.')
+    group.add_argument ('--autostop', action='store_true',     help='Exit when voltage drops below battery cutoff.')
+    group.add_argument ('--autoshtd', action='store_true',     help='Shutdown when voltage drops below battery cutoff.')
 
     args = parser.parse_args()
 
@@ -239,6 +267,10 @@ def main():
         sys.exit(1)
 
     if serial_device.isOpen():
+
+        if args.sformat or args.filename:
+            if args.onoff:
+                input('Set current and clear counters on DL24, then press Enter to start...')
 
         if args.onoff:
             dl24obj.send_command(serial_device, COMMAND_OK)
@@ -256,8 +288,6 @@ def main():
             dl24obj.print_data_header()
 
         if args.sformat or args.filename:
-            if args.onoff:
-                input('Set current and clear counters on DL24, then press Enter to start...')
             try:
                 while True:
                     data = serial_device.read(MESSAGE_SIZE)
@@ -265,6 +295,7 @@ def main():
                         dl24obj.print_data(args, filename, data)
                         if (args.autostop or args.autoshtd) and dl24obj.curr_state == "stopped":
                              print(' Autostop')
+                             dl24obj.send_command(serial_device, COMMAND_OK)
                              break
 
             except KeyboardInterrupt:
@@ -276,7 +307,7 @@ def main():
         if args.filename:
             if dl24obj.avg_ext_temp_sum != 0:
                 avg_temp = dl24obj.avg_ext_temp_sum / dl24obj.avg_ext_temp_cnt
-                data = f"\n], \"average_temp\": {avg_temp:.1f}\n}}\n"
+                data = f"\n], \"average_temp\": {avg_temp:.1f}, \"battery_type\": \"{dl24obj.battery_type}\"\n}}\n"
             else:
                 data = "\n]\n}\n"
 

@@ -2,7 +2,7 @@
 
 Tested environment (HW + SW):
  - Raspberry Pi 4B + Raspberry Pi OS Lite (64-bit) - Debian Trixie 2025-12-04
- - Raspberry Pi Zero 2 W + Raspberry Pi OS Lite (64-bit) - Debian Trixie 2025-12-04
+ - Raspberry Pi Zero 2 W + Raspberry Pi OS Lite (64-bit) - Debian Trixie 13.7
  - DL24 + firmware version 1.1.0
  - BW150 + firmware version 1.1.0
 
@@ -62,13 +62,13 @@ $ ls /sys/bus/w1/devices/
 
 Run:
 ```
-$ ./dl24_logger.sh <BD_ADDR> [-h]
+$ sudo ./dl24_logger.sh <BD_ADDR> [-h]
 ```
 
 Use a screen manager for long runs:
 ```
 $ screen
-$ ./dl24_logger.sh ...
+$ sudo ./dl24_logger.sh ...
 <CTRL-A + D> (Detach)
 screen -r (Reattach)
 ```
